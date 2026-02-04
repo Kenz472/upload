@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Uploader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; min-height: 100vh; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 2rem; }
+        .upload-zone { border: 2px dashed #4a4a6a; border-radius: 12px; padding: 3rem; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .upload-zone:hover, .upload-zone.dragover { border-color: #6366f1; background: rgba(99, 102, 241, 0.1); }
+        .btn { background: #6366f1; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; margin-top: 1rem; }
+        .files { margin-top: 2rem; display: grid; gap: 1rem; }
+        .file-card { background: #16213e; padding: 1rem; border-radius: 8px; }
+        .progress { width: 100%; height: 4px; background: #4a4a6a; border-radius: 2px; margin-top: 0.5rem; }
+        .progress-fill { height: 100%; background: #6366f1; width: 0%; transition: width 0.3s; }
+        .url-box { background: #0f3460; padding: 0.5rem; border-radius: 4px; font-size: 0.75rem; word-break: break-all; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+        .copy-btn { background: #10b981; color: #fff; border: none; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
+        .copy-btn:hover { background: #059669; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📤 Media Uploader</h1>
+        <div class="upload-zone" id="uploadZone">
+            <p>Drag & drop files here</p>
+            <button class="btn" onclick="document.getElementById('fileInput').click()">Pilih File</button>
+            <input type="file" id="fileInput" hidden multiple>
+        </div>
+        <div class="files" id="files"></div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const files = document.getElementById('files');
+
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => { e.preventDefault(); uploadZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(fileList) {
+            Array.from(fileList).forEach(file => uploadFile(file));
+        }
+
+        async function uploadFile(file) {
+            const id = Date.now() + Math.random().toString(36).substr(2, 9);
+            const card = document.createElement('div');
+            card.className = 'file-card';
+            card.id = id;
+            card.innerHTML = `
+                <div>${file.name}</div>
+                <div class="progress"><div class="progress-fill" id="p-${id}"></div></div>
+                <div id="status-${id}"></div>
+            `;
+            files.prepend(card);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    document.getElementById(`p-${id}`).style.width = (e.loaded / e.total * 100) + '%';
+                }
+            };
+            
+            xhr.onload = () => {
+                const data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    document.getElementById(`status-${id}`).innerHTML = `
+                        <div class="url-box">
+                            <span id="url-${id}">${data.url}</span>
+                            <button class="copy-btn" onclick="copyUrl('${id}')">Salin</button>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById(`status-${id}`).innerHTML = '<div style="color:red; margin-top:0.5rem;">Failed</div>';
+                }
+            };
+            
+            xhr.onerror = () => {
+                document.getElementById(`status-${id}`).innerHTML = '<div style="color:red; margin-top:0.5rem;">Error</div>';
+            };
+            
+            xhr.open('POST', '/api/upload');
+            xhr.send(formData);
+        }
+
+        function copyUrl(id) {
+            const url = document.getElementById(`url-${id}`).textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.querySelector(`#${id} .copy-btn`);
+                btn.textContent = 'Tersalin!';
+                btn.style.background = '#059669';
+                setTimeout(() => {
+                    btn.textContent = 'Salin';
+                    btn.style.background = '#10b981';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
